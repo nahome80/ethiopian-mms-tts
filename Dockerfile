@@ -19,6 +19,12 @@ RUN pip install --no-cache-dir torch --extra-index-url https://download.pytorch.
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Pre-cache MMS models during build so container has zero download latency at runtime
+RUN python -c "from transformers import VitsModel, AutoTokenizer; \
+    for l in ['amh', 'orm', 'tir', 'som']: \
+        AutoTokenizer.from_pretrained(f'facebook/mms-tts-{l}'); \
+        VitsModel.from_pretrained(f'facebook/mms-tts-{l}')"
+
 # Copy application code
 COPY . .
 

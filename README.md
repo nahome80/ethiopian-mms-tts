@@ -1,6 +1,6 @@
 ---
 title: Ethiopian MMS TTS API
-emoji: 🇪🇹
+emoji: 🎙
 colorFrom: yellow
 colorTo: green
 sdk: docker

@@ -5,10 +5,14 @@ Supports Amharic (amh), Afaan Oromoo (orm), Tigrinya (tir), and Somali (som).
 
 import os
 import io
+import gc
 import time
 import base64
 import logging
 from typing import Optional, Dict, Any
+
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,6 +20,9 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
 import torch
+torch.set_num_threads(1)
+torch.set_grad_enabled(False)
+
 import numpy as np
 import scipy.io.wavfile as wav
 from transformers import VitsModel, AutoTokenizer
@@ -85,19 +92,33 @@ MMS_VOICE_PROFILES = {
     }
 }
 
-# In-memory model cache
+# In-memory model cache (keep active language model in memory, evict older models to stay < 350MB RAM)
 loaded_models: Dict[str, VitsModel] = {}
 loaded_tokenizers: Dict[str, AutoTokenizer] = {}
 
 def get_model(lang_id: str):
+    global loaded_models, loaded_tokenizers
     if lang_id not in loaded_models:
+        if len(loaded_models) > 0:
+            logger.info("Evicting previously cached model to maintain low RAM...")
+            loaded_models.clear()
+            loaded_tokenizers.clear()
+            gc.collect()
+
         model_name = MMS_MODELS[lang_id]
-        logger.info(f"Loading MMS checkpoint: {model_name}...")
+        logger.info(f"Loading MMS checkpoint with low memory usage: {model_name}...")
         tokenizer = AutoTokenizer.from_pretrained(model_name)
-        model = VitsModel.from_pretrained(model_name)
-        model.eval()
+        with torch.no_grad():
+            try:
+                model = VitsModel.from_pretrained(model_name, low_cpu_mem_usage=True)
+            except Exception:
+                model = VitsModel.from_pretrained(model_name)
+            model.eval()
+
         loaded_tokenizers[lang_id] = tokenizer
         loaded_models[lang_id] = model
+        gc.collect()
+
     return loaded_models[lang_id], loaded_tokenizers[lang_id]
 
 class SynthesisPayload(BaseModel):

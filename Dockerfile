@@ -10,8 +10,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-# Pre-install torch cpu to keep image lightweight and fast to build
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# Install CPU PyTorch using extra-index-url so dependencies resolve properly
+RUN pip install --no-cache-dir torch --extra-index-url https://download.pytorch.org/whl/cpu
 
 # Install application dependencies
 COPY requirements.txt .
@@ -24,4 +26,5 @@ COPY . .
 EXPOSE 10000 7860
 
 CMD ["python", "app.py"]
+
 
